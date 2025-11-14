@@ -1,0 +1,7 @@
+/.env 
+/.venv
+/api/__pycache__
+/api/repositories/__pycache__
+/api/services/__pycache__
+
+
