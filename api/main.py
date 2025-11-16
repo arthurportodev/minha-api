@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Query
 from typing import Optional
 import json
 
-#Schemas (validação de entrada/saída)
+# Schemas (validação de entrada/saída)
 from .schemas import LeadIn, LeadOut, SendMessageIn
 
 # Serviços de regra do negócio
@@ -17,26 +17,29 @@ from .repositories.events import add_event
 from .db import ping
 
 
-
-app = FastAPI(title= "Leads API", version="0.1.0")
+app = FastAPI(title="Leads API", version="0.1.0")
 
 # 1) Healthcheck - Confere a API e Banco
+
+
 @app.get("/health")
 def health():
     """
     Retorna status básico da API e do banco.
     GET /health -> {"api": "ok", "db":"ok"}
     """
-    return {"api":"ok", "db":"ok" if ping() else "fail"}
+    return {"api": "ok", "db": "ok" if ping() else "fail"}
 
 # 2) Webhook de lead - entrada principal de dados
+
+
 @app.post("/webhooks/lead", response_model=LeadOut)
 def webhook_lead(payload: LeadIn):
     email = lower_or_none(payload.email)
     telefone = clean_phone(payload.telefone)
     if not email and not telefone:
         raise HTTPException(422, "Informe ao menos email ou telefone")
-    
+
     nome = clean_name(payload.nome)
     origem = payload.origem or "outro"
     tags = payload.tags or []
@@ -45,7 +48,7 @@ def webhook_lead(payload: LeadIn):
     score = compute_score(bool(telefone), bool(email), origem, tags)
     etapa = stage_from_score(score)
 
-    # Monta o pacote para pesistir 
+    # Monta o pacote para pesistir
     lead_data = {
         "nome": nome,
         "email": email,
@@ -57,12 +60,15 @@ def webhook_lead(payload: LeadIn):
         "etapa": etapa,
     }
 
-    #Upsert no banco (insere se novo; atualiza se já existe por email/telefone)
+    # Upsert no banco (insere se novo; atualiza se já existe por email/telefone)
     lead_id = upsert_lead(lead_data)
-    add_event(lead_id, "entrada", {"origem": origem, "score": score, "tags": tags})
+    add_event(lead_id, "entrada", {
+              "origem": origem, "score": score, "tags": tags})
     return {"lead_id": lead_id, "score": score, "etapa": etapa}
 
 # 3) Listagem de leads - com filtros (query params)
+
+
 @app.get("/leads")
 def get_leads(origem: Optional[str] = Query(None), etapa: Optional[str] = Query(None)):
     """
@@ -72,6 +78,8 @@ def get_leads(origem: Optional[str] = Query(None), etapa: Optional[str] = Query(
     return list_leads(origem, etapa)
 
 # 4) Detalhe de um lead - path param
+
+
 @app.get("/leads/{lead_id}")
 def lead_detail(lead_id: int):
     lead = get_by_id(lead_id)
@@ -80,6 +88,8 @@ def lead_detail(lead_id: int):
     return lead
 
 # 5) Ação: enviar mensagem - integra com whatsapp API
+
+
 @app.post("/action/send-message")
 def send_message(data: SendMessageIn):
     """
@@ -91,7 +101,7 @@ def send_message(data: SendMessageIn):
         raise HTTPException(404, "Lead não encontrado")
     if not lead.get("telefone"):
         raise HTTPException(422, "Lead sem telefone")
-    
+
     from .services.messaging import send_whatsapp
 
     resp = send_whatsapp(lead["telefone"], data.texto)
