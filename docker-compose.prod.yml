@@ -1,0 +1,52 @@
+version: "3.8"
+
+services:
+  api:
+    image: arthur433/leads-api:latest
+
+    environment:
+      DB_HOST: db_mysql_mysql
+      DB_PORT: 3306
+      DB_NAME: projeto_automacao
+      DB_USER: leads_user
+      DB_PASSWORD: ${DB_PASSWORD}
+
+    networks:
+      - PortoNet
+
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.api.rule=Host(`api.agenciagenesismkt.com.br`)"
+        - "traefik.http.routers.api.entrypoints=websecure"
+        - "traefik.http.routers.api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.api.loadbalancer.server.port=8000"
+        - "traefik.docker.network=PortoNet"
+
+  db_mysql_mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: projeto_automacao
+      MYSQL_USER: leads_user
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - db_mysql_mysql_data:/var/lib/mysql
+    networks:
+      - PortoNet
+
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+volumes:
+  db_mysql_mysql_data:
+
+networks:
+  PortoNet:
+    external: true
