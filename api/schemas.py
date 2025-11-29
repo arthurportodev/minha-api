@@ -71,6 +71,10 @@ class LeadDetail(BaseModel):
     externo_id: Optional[str]
     created_at: datetime
     updated_at: datetime
+    servico_interesse: Optional[str] = None
+    regiao_corpo: Optional[str] = None
+    disponibilidade: Optional[str] = None
+
 
     class Config:
         orm_mode = True  # Pydantic v1: permite ler objetos vindos do cursor/ORM

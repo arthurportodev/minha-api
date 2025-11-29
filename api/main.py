@@ -72,7 +72,7 @@ def webhook_lead(payload: LeadIn):
     has_email = bool(email)
 
     # 2) Scoring e etapa
-    score = compute_score(has_phone, has_email, origem, tags)
+    score = compute_score(has_phone, has_email, origem, tags, servico_interesse=payload.servico_interesse, regiao_corpo=payload.regiao_corpo, disponibilidade=payload.disponibilidade,)
     etapa = stage_from_score(score)
 
     # 3) Monta dict pra camada de repositório
