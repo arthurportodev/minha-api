@@ -19,7 +19,7 @@ from .services.scoring import compute_score, stage_from_score
 from .repositories.leads import upsert_lead, get_by_id, list_leads
 from .repositories.events import add_event
 from .repositories.historico_servicos import (
-    add_history_entry,
+    adicionar_servico,
     list_history_for_lead,
 )
 
@@ -182,7 +182,7 @@ def create_history_entry(lead_id: int, payload: HistoricoServicoIn):
         raise HTTPException(404, "Lead não encontrado")
 
     # Grava no histórico
-    history_id = add_history_entry(
+    history_id = adicionar_servico(
         lead_id=lead_id,
         servico=payload.servico,
         data_servico=payload.data_servico,
