@@ -204,7 +204,7 @@ def create_history_entry(lead_id: int, payload: HistoricoServicoIn):
     )
 
     # Busca o registro criado para devolver com created_at etc.
-    history_items = list_history_for_lead(lead_id)
+    history_items = listar_historico_por_lead(lead_id)
     created = next((h for h in history_items if h["id"] == history_id), None)
     if not created:
         raise HTTPException(500, "Erro ao recuperar histórico recém-criado")
@@ -216,7 +216,7 @@ def create_history_entry(lead_id: int, payload: HistoricoServicoIn):
     "/leads/{lead_id}/historico",
     response_model=List[HistoricoServicoOut],
 )
-def get_history_for_lead(lead_id: int):
+def listar_historico_por_lead(lead_id: int):
     """
     Lista o histórico de serviços do lead (consultas, procedimentos, etc.).
     """
@@ -224,5 +224,5 @@ def get_history_for_lead(lead_id: int):
     if not lead:
         raise HTTPException(404, "Lead não encontrado")
 
-    return list_history_for_lead(lead_id)
+    return listar_historico_por_lead(lead_id)
 
