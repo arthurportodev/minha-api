@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Query
+import json
 
 from api.schemas import LeadIn, LeadOut, LeadFilters, SendMessageIn
 from api.services.normalize import clean_name, clean_phone, lower_or_none
@@ -51,35 +52,37 @@ def health() -> Dict[str, str]:
 
 @app.post("/webhooks/lead", response_model=LeadOut)
 def webhook_lead(lead_in: LeadIn) -> LeadOut:
-    """
-    Recebe um lead de qualquer origem (WhatsApp, ManyChat, formulário etc.),
-    normaliza os dados, calcula o score e grava/atualiza no banco.
-    """
-
-    # 1) Normalização básica
     data: Dict[str, Any] = lead_in.dict()
 
+    # Normalização
     data["nome"] = clean_name(data.get("nome"))
     data["telefone"] = clean_phone(data.get("telefone"))
     data["origem"] = lower_or_none(data.get("origem")) or "outro"
-    # tags já vem como lista de strings em LeadIn
 
-    # 2) Scoring simples com base nas respostas / dados
+    # Garante que tags é uma lista
+    tags = data.get("tags") or []
+    if isinstance(tags, str):
+        tags = [tags]
+    data["tags"] = tags
+
+    # 👇 NOVO: campo que o upsert_lead espera
+    data["tags_json"] = json.dumps(tags, ensure_ascii=False)
+
+    # Scoring
     score = compute_score(
         has_phone=bool(data.get("telefone")),
         has_email=bool(data.get("email")),
         origem=data.get("origem"),
-        tags=data.get("tags"),
+        tags=tags,
     )
     etapa = stage_from_score(score)
-
     data["score"] = score
     data["etapa"] = etapa
 
-    # 3) Upsert do lead (insere ou atualiza)
+    # Upsert no banco
     lead_id = upsert_lead(data)
 
-    # 4) Registro de evento de entrada
+    # Evento
     add_event(
         lead_id=lead_id,
         tipo="entrada",
@@ -87,6 +90,7 @@ def webhook_lead(lead_in: LeadIn) -> LeadOut:
     )
 
     return LeadOut(lead_id=lead_id, score=score, etapa=etapa)
+
 
 
 # ---------------------------------------------------------------------------
