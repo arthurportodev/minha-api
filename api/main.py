@@ -3,11 +3,11 @@ from typing import Any, Dict, List, Optional
 from fastapi import Body, FastAPI, HTTPException, Query
 
 from api.schemas import LeadIn, LeadOut, LeadFilters, SendMessageIn
-from services.normalize import clean_name, clean_phone, lower_or_none
-from services.scoring import compute_score, stage_from_score
-from repositories.leads import upsert_lead, get_by_id, list_leads
-from repositories.events import add_event
-from repositories.historico_servicos import (
+from api.services.normalize import clean_name, clean_phone, lower_or_none
+from api.services.scoring import compute_score, stage_from_score
+from api.repositories.leads import upsert_lead, get_by_id, list_leads
+from api.repositories.events import add_event
+from api.repositories.historico_servicos import (
     adicionar_servico,
     listar_historico_por_lead,
 )
