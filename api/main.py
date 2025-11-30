@@ -11,6 +11,7 @@ from api.repositories.historico_servicos import (
     adicionar_servico,
     listar_historico_por_lead,
 )
+from api.services.messaging import send_whatsapp  # <--- IMPORT DO ENVIO WHATSAPP
 
 # opcional – se você tiver o ping configurado no db.py
 try:
@@ -86,6 +87,67 @@ def webhook_lead(lead_in: LeadIn) -> LeadOut:
     )
 
     return LeadOut(lead_id=lead_id, score=score, etapa=etapa)
+
+
+# ---------------------------------------------------------------------------
+# Ações (envio de mensagem para lead)
+# ---------------------------------------------------------------------------
+
+@app.post("/action/send-message")
+def action_send_message(body: SendMessageIn) -> Dict[str, Any]:
+    """
+    Envia uma mensagem de WhatsApp para o lead informado e registra o evento.
+
+    Esse endpoint é pensado para o n8n:
+    - recebe lead_id e texto
+    - busca o telefone do lead no banco
+    - chama o serviço de envio de WhatsApp
+    - registra evento de mensagem enviada (ou erro de envio)
+    """
+
+    # 1) Buscar o lead
+    lead = get_by_id(body.lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+    telefone = lead.get("telefone")
+    if not telefone:
+        raise HTTPException(
+            status_code=400,
+            detail="Lead não possui telefone cadastrado",
+        )
+
+    # 2) Enviar mensagem pelo WhatsApp
+    result = send_whatsapp(telefone=telefone, texto=body.texto)
+
+    # 3) Definir tipo de evento conforme resultado
+    tipo_evento = "mensagem_enviada"
+    if isinstance(result, dict) and result.get("status") == "error":
+        tipo_evento = "erro_envio"
+
+    # 4) Registrar evento no lead_events
+    add_event(
+        lead_id=body.lead_id,
+        tipo=tipo_evento,
+        payload={
+            "texto": body.texto,
+            "telefone": telefone,
+            "whatsapp_result": result,
+        },
+    )
+
+    # 5) Retornar algo simples para o n8n
+    if isinstance(result, dict):
+        return {
+            "status": result.get("status", "unknown"),
+            "detail": result.get("detail"),
+        }
+
+    # fallback se o serviço de envio retornar outro tipo
+    return {
+        "status": "unknown",
+        "detail": str(result),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -201,23 +263,3 @@ def listar_historico_servicos(lead_id: int) -> List[Dict[str, Any]]:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
 
     return listar_historico_por_lead(lead_id)
-
-
-# ---------------------------------------------------------------------------
-# (Opcional) Endpoint para enviar mensagem manual (se for usar o services.messaging)
-# ---------------------------------------------------------------------------
-
-# from .services.messaging import send_whatsapp  # descomenta se quiser usar
-
-# @app.post("/leads/{lead_id}/send-message")
-# def send_message(lead_id: int, body: SendMessageIn):
-#     lead = get_by_id(lead_id)
-#     if not lead:
-#         raise HTTPException(status_code=404, detail="Lead não encontrado")
-#
-#     telefone = lead.get("telefone")
-#     if not telefone:
-#         raise HTTPException(status_code=400, detail="Lead não possui telefone")
-#
-#     result = send_whatsapp(telefone=telefone, texto=body.texto)
-#     return result
