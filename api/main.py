@@ -32,7 +32,7 @@ app = FastAPI(
 @app.get("/health")
 def health() -> Dict[str, str]:
     api_status = "ok"
-    db_status = "unknown"
+    db_status = "ok"
 
     if db_ping is not None:
         try:
