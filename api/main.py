@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Query
 
-from schemas import LeadIn, LeadOut, LeadFilters, SendMessageIn
+from api.schemas import LeadIn, LeadOut, LeadFilters, SendMessageIn
 from services.normalize import clean_name, clean_phone, lower_or_none
 from services.scoring import compute_score, stage_from_score
 from repositories.leads import upsert_lead, get_by_id, list_leads

@@ -1,62 +1,97 @@
-from typing import List, Optional
+from typing import Optional, List
 
 
 def compute_score(
     has_phone: bool,
     has_email: bool,
-    origem: Optional[str],
+    origem: str,
     tags: Optional[List[str]] = None,
+    servico_interesse: Optional[str] = None,
+    regiao_corpo: Optional[str] = None,
+    disponibilidade: Optional[str] = None,
 ) -> int:
     """
-    Calcula um score de 0 a 100 com base em informações simples
-    do lead (telefone, e-mail, origem, tags etc.).
+    Calcula um score de 0 a 100 para o lead, pensando no funil da clínica de estética.
+
+    - Bloco 1: contato (telefone/email)
+    - Bloco 2: serviço de interesse (designer, limpeza, depilação)
+    - Bloco 3: detalhes específicos de depilação (região + histórico em tags)
+    - Bloco 4: disponibilidade
     """
-
     score = 0
-
-    # Telefone é muito importante
-    if has_phone:
-        score += 40
-
-    # E-mail ajuda bastante
-    if has_email:
-        score += 20
-
-    # Origem do lead
-    origem = (origem or "").lower()
-
-    if origem in ("instagram", "manychat", "whatsapp"):
-        score += 20
-    elif origem in ("site", "formulario"):
-        score += 10
-    # "outro" ou vazio não ganha bônus
-
-    # Tags podem adicionar mais pontos
     tags = tags or []
 
-    tags_lower = [t.lower() for t in tags]
+    # =========================
+    # 1) CONTATO (até 35 pts)
+    # =========================
+    if has_phone:
+        # foco forte em quem tem telefone válido (WhatsApp)
+        score += 30
+    if has_email:
+        score += 5
 
-    # Interesse direto em estética
-    if any(t in tags_lower for t in ["estetica", "limpeza_pele", "laser", "sobrancelha"]):
+    # =========================
+    # 2) SERVIÇO DE INTERESSE (até 30 pts)
+    # =========================
+    # servico_interesse pode vir do payload ou ser inferido por tags,
+    # então deixamos opcional.
+    si = (servico_interesse or "").lower()
+
+    if si == "depilacao_laser":
+        score += 30
+    elif si == "limpeza_pele":
+        score += 20
+    elif si == "designer_sobrancelha":
         score += 10
+    # se não vier nada, não soma aqui
 
-    # Lead quente
-    if "urgente" in tags_lower or "quer_agendar" in tags_lower:
-        score += 10
+    # =========================
+    # 3) DETALHES DE DEPILAÇÃO A LASER (até 30 pts)
+    # =========================
+    if si == "depilacao_laser":
+        # 3.1 Região do corpo (até 15)
+        regiao = (regiao_corpo or "").lower()
 
-    # Garante limite entre 0 e 100
-    score = max(0, min(score, 100))
-    return score
+        if any(p in regiao for p in ["perna", "coxa", "corpo inteiro", "corpo todo"]):
+            score += 15
+        elif any(p in regiao for p in ["virilha", "axila", "rosto", "braço", "braco"]):
+            score += 10
+        elif regiao:
+            score += 5
+
+        # 3.2 Histórico (até 15)
+        # essas tags você configura no n8n conforme a resposta do lead:
+        # - "laser_outra_clinica"
+        # - "laser_parou"
+        # - "laser_primeira_vez"
+        if "laser_outra_clinica" in tags:
+            score += 15
+        elif "laser_parou" in tags:
+            score += 10
+        elif "laser_primeira_vez" in tags:
+            score += 5
+
+    # =========================
+    # 4) DISPONIBILIDADE (até 5 pts)
+    # =========================
+    disp = (disponibilidade or "").lower()
+    opcoes = ["manhã", "manha", "tarde", "noite", "semana", "sábado", "sabado"]
+    encontradas = [p for p in opcoes if p in disp]
+
+    # se a pessoa tem mais de um período/dia possível, é mais fácil encaixar
+    if len(encontradas) >= 2:
+        score += 5
+
+    # Garante que fica entre 0 e 100
+    return max(0, min(score, 100))
 
 
 def stage_from_score(score: int) -> str:
     """
-    Converte o score em etapa do funil.
+    Traduz o score em etapa do funil.
+    Aqui eu deixo 'cliente' para ser setado manualmente (quando a venda fechar),
+    e uso o score só pra decidir 'novo' x 'qualificado'.
     """
-
-    if score >= 70:
-        return "cliente"
-    elif score >= 40:
+    if score >= 60:
         return "qualificado"
-    else:
-        return "novo"
+    return "novo"
