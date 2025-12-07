@@ -1,5 +1,7 @@
 from typing import Optional, List, Dict, Any
 from ..db import get_conn
+from typing import Optional, List, Dict, Any
+from ..db import get_conn
 
 
 def upsert_lead(data: Dict[str, Any]) -> int:
@@ -73,3 +75,54 @@ def list_leads(origem: Optional[str], etapa: Optional[str]) -> List[Dict[str, An
     with get_conn() as conn, conn.cursor(dictionary=True) as cur:
         cur.execute(sql, params)
         return cur.fetchall()
+    
+def update_lead(lead_id: int, data: Dict[str, Any]) -> None:
+    """
+    Atualiza um lead existente.
+    Apenas as chaves presentes em `data` e permitidas em `allowed_fields`
+    são incluídas no UPDATE.
+
+    Exemplo de `data`:
+        {"servico_interesse": "Botox", "regiao_corpo": "rosto"}
+    """
+    if not data:
+        return
+
+    # Campos que realmente existem na tabela `leads`
+    allowed_fields = {
+        "nome",
+        "email",
+        "telefone",
+        "origem",
+        "tags",
+        "externo_id",
+        "score",
+        "etapa",
+        "servico_interesse",
+        "regiao_corpo",
+        "disponibilidade",
+    }
+
+    set_clauses: List[str] = []
+    params: List[Any] = []
+
+    for key, value in data.items():
+        if key not in allowed_fields:
+            # ignora qualquer chave estranha que vier do agente/n8n
+            continue
+        set_clauses.append(f"{key} = %s")
+        params.append(value)
+
+    if not set_clauses:
+        # nada permitido pra atualizar
+        return
+
+    # opcional: atualiza o updated_at também
+    set_clauses.append("updated_at = CURRENT_TIMESTAMP")
+
+    params.append(lead_id)
+    sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = %s"
+
+    with get_conn() as conn, conn.cursor(dictionary=True) as cur:
+        cur.execute(sql, params)
+        conn.commit()

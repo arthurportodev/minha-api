@@ -3,6 +3,8 @@ from decimal import Decimal
 from typing import Optional, List, Literal, Dict, Any
 
 from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+from pydantic import BaseModel
 
 
 # =========================
@@ -53,6 +55,24 @@ class LeadOut(BaseModel):
     lead_id: int
     score: int
     etapa: LeadEtapa
+
+class LeadUpdateIn(BaseModel):
+    """
+    Payload usado pelo endpoint /action/update-lead.
+
+    Só o campo `lead_id` é obrigatório.
+    Todos os outros são opcionais: apenas o que vier preenchido
+    será atualizado no banco.
+    """
+    lead_id: int
+
+    servico_interesse: Optional[str] = None
+    regiao_corpo: Optional[str] = None
+    disponibilidade: Optional[str] = None
+
+    # se você quiser permitir que o agente altere etapa/score também:
+    etapa: Optional[str] = None      # troque pra Enum/Tipo que você já usa, se houver
+    score: Optional[int] = None
 
 
 class LeadDetail(BaseModel):
