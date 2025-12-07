@@ -182,130 +182,19 @@ class LeadUpdateIn(BaseModel):
         description="Campos a atualizar no cadastro do lead",
     )
 
-
-@app.post("/action/update-lead")
-def action_update_lead(body: LeadUpdateIn) -> Dict[str, Any]:
-    """
-    Atualiza campos do lead no banco, usando o mesmo upsert_lead.
-
-    Pensado para ser chamado pelo n8n depois que o agente de IA
-    extraiu as respostas de qualificação (serviço de interesse, região
-    do corpo, disponibilidade, etc.).
-    """
-
-    # 1) Buscar lead atual
-    lead_atual = get_by_id(body.lead_id)
-    if not lead_atual:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
-
-    # 2) Montar dicionário de atualização
-    updates = dict(body.lead_update or {})
-
-    # --- Normalizações básicas nos campos mais importantes ---------
-    if "nome" in updates:
-        updates["nome"] = clean_name(updates["nome"])
-
-    if "telefone" in updates:
-        updates["telefone"] = clean_phone(updates["telefone"])
-
-    if "origem" in updates:
-        updates["origem"] = lower_or_none(updates["origem"]) or "outro"
-
-    # tags: aceita string única ou lista e atualiza tags_json
-    if "tags" in updates:
-        tags = updates["tags"] or []
-        if isinstance(tags, str):
-            tags = [tags]
-        updates["tags"] = tags
-        updates["tags_json"] = json.dumps(tags, ensure_ascii=False)
-
-    # 3) Recalcular score/etapa se algum campo relevante mudou
-    if any(k in updates for k in ("telefone", "email", "origem", "tags")):
-        telefone = updates.get("telefone", lead_atual.get("telefone"))
-        email = updates.get("email", lead_atual.get("email"))
-        origem = updates.get("origem", lead_atual.get("origem"))
-        tags_calc = updates.get("tags", lead_atual.get("tags") or [])
-
-        score = compute_score(
-            has_phone=bool(telefone),
-            has_email=bool(email),
-            origem=origem,
-            tags=tags_calc,
-        )
-        updates["score"] = score
-        updates["etapa"] = stage_from_score(score)
-
-    # 4) Garante que os campos de identificação continuem os mesmos
-    data_to_save: Dict[str, Any] = dict(lead_atual)
-    data_to_save.update(updates)
-
-    # MUITO importante: manter o externo_id/telefone/email originais
-    # para o upsert bater no mesmo registro.
-    # (se o seu upsert usar outro campo único, ele já está em lead_atual)
-    if "id" in data_to_save:
-        # alguns ORMs usam "id", outros "lead_id"; aqui só garantimos que exista
-        data_to_save["id"] = lead_atual.get("id", body.lead_id)
-
-    # 5) Salvar via upsert_lead (vai fazer UPDATE no registro existente)
-    lead_id_result = upsert_lead(data_to_save)
-
-    # 6) Registrar evento de atualização
-    add_event(
-        lead_id=body.lead_id,
-        tipo="atualizacao",
-        payload={
-            "updates": updates,
-        },
+@app.post("/action/update-lead", response_model=LeadOut)
+def action_update_lead(payload: LeadUpdateIn):
+    lead = update_lead(
+        lead_id=payload.lead_id,
+        servico_interesse=payload.servico_interesse,
+        regiao_corpo=payload.regiao_corpo,
+        disponibilidade=payload.disponibilidade,
     )
 
-    return {
-        "lead_id": lead_id_result,
-        "updated_fields": list(updates.keys()),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Consultas de leads
-# ---------------------------------------------------------------------------
-
-@app.post("/action/update-lead", response_model=LeadOut, tags=["Leads"])
-def action_update_lead(payload: LeadUpdateIn):
-    """
-    Endpoint que o n8n / agente de IA vai chamar para atualizar os dados
-    de um lead já existente.
-
-    Exemplo de JSON que o n8n deve enviar:
-
-    {
-      "lead_id": 2,
-      "servico_interesse": "Botox",
-      "regiao_corpo": "rosto",
-      "disponibilidade": "período da manhã",
-      "etapa": "qualificado",
-      "score": 80
-    }
-    """
-
-    # Garante que o lead existe
-    lead = get_by_id(payload.lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
 
-    # Monta só os campos que realmente serão atualizados
-    update_data = payload.dict(exclude_unset=True, exclude={"lead_id"})
-
-    if not update_data:
-        raise HTTPException(
-            status_code=400,
-            detail="Nenhum campo para atualizar foi enviado.",
-        )
-
-    # Atualiza no banco
-    update_lead(payload.lead_id, update_data)
-
-    # Busca de novo pra devolver o lead atualizado
-    updated = get_by_id(payload.lead_id)
-    return updated
+    return lead
 
 
 @app.get("/leads")
