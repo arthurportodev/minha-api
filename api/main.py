@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import Body, FastAPI, HTTPException, Query
 import json
 
+from pydantic import BaseModel, Field
 from api.schemas import LeadIn, LeadOut, LeadFilters, SendMessageIn, LeadUpdateIn
 from api.services.normalize import clean_name, clean_phone, lower_or_none
 from api.services.scoring import compute_score, stage_from_score
@@ -157,44 +158,26 @@ def action_send_message(body: SendMessageIn) -> Dict[str, Any]:
 # Ação para ATUALIZAR dados do lead (/action/update-lead)
 # ---------------------------------------------------------------------------
 
-from pydantic import BaseModel, Field  # noqa: E402 (já é usado abaixo também)
-
-
-class LeadUpdateIn(BaseModel):
+@app.post("/action/update-lead")
+def action_update_lead(payload: LeadUpdateIn) -> Dict[str, Any]:
     """
-    Body para o endpoint /action/update-lead.
-
-    A ideia é o n8n/Agente de IA mandar algo nesse formato:
-
-    {
-      "lead_id": 2,
-      "lead_update": {
-        "servico_interesse": "limpeza_pele",
-        "regiao_corpo": "rosto",
-        "disponibilidade": "manhã",
-        "concluiu_qualificacao": true
-      }
-    }
+    Atualiza alguns campos do lead (servico_interesse, regiao_corpo, disponibilidade, etc.)
+    a partir de um payload vindo do n8n / agente de IA.
     """
-    lead_id: int = Field(..., description="ID do lead a ser atualizado")
-    lead_update: Dict[str, Any] = Field(
-        ...,
-        description="Campos a atualizar no cadastro do lead",
-    )
-
-@app.post("/action/update-lead", response_model=LeadOut)
-def action_update_lead(payload: LeadUpdateIn):
     lead = update_lead(
         lead_id=payload.lead_id,
         servico_interesse=payload.servico_interesse,
         regiao_corpo=payload.regiao_corpo,
         disponibilidade=payload.disponibilidade,
+        etapa=payload.etapa,
+        score=payload.score,
     )
 
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
 
     return lead
+
 
 
 @app.get("/leads")
