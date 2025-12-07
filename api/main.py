@@ -158,26 +158,43 @@ def action_send_message(body: SendMessageIn) -> Dict[str, Any]:
 # Ação para ATUALIZAR dados do lead (/action/update-lead)
 # ---------------------------------------------------------------------------
 
+# importa o LeadUpdateIn lá em cima
+# from api.schemas import LeadUpdateIn, LeadFilters, LeadDetail, ...
+
 @app.post("/action/update-lead")
 def action_update_lead(payload: LeadUpdateIn) -> Dict[str, Any]:
     """
-    Atualiza alguns campos do lead (servico_interesse, regiao_corpo, disponibilidade, etc.)
-    a partir de um payload vindo do n8n / agente de IA.
+    Atualiza alguns campos do lead (servico_interesse, regiao_corpo,
+    disponibilidade, etapa, score) a partir de um payload vindo do n8n/agente de IA.
     """
-    lead = update_lead(
-        lead_id=payload.lead_id,
-        servico_interesse=payload.servico_interesse,
-        regiao_corpo=payload.regiao_corpo,
-        disponibilidade=payload.disponibilidade,
-        etapa=payload.etapa,
-        score=payload.score,
-    )
 
+    # 1) Monta o dicionário só com o que veio preenchido
+    data: Dict[str, Any] = {}
+
+    if payload.servico_interesse is not None:
+        data["servico_interesse"] = payload.servico_interesse
+
+    if payload.regiao_corpo is not None:
+        data["regiao_corpo"] = payload.regiao_corpo
+
+    if payload.disponibilidade is not None:
+        data["disponibilidade"] = payload.disponibilidade
+
+    if payload.etapa is not None:
+        data["etapa"] = payload.etapa
+
+    if payload.score is not None:
+        data["score"] = payload.score
+
+    # 2) Chama a função do repositório
+    update_lead(payload.lead_id, data)
+
+    # 3) Busca o lead atualizado
+    lead = get_by_id(payload.lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
 
     return lead
-
 
 
 @app.get("/leads")
